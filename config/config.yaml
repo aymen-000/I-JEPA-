@@ -1,0 +1,140 @@
+# I-JEPA Configuration for Low-End GPUs
+# Optimized for GPUs with 4-8GB VRAM
+
+# =============================================================================
+# META CONFIGURATION
+# =============================================================================
+meta:
+  use_bfloat16: true  # Use mixed precision to save memory
+  model_name: 'vit_small'  # Use smaller model (vit_tiny, vit_small, vit_base)
+  load_checkpoint: false  # Set to true to resume training
+  read_checkpoint: null  # Path to checkpoint file if resuming
+  copy_data: false  # Set to true if you want to copy data locally
+  pred_depth: 6  # Reduced predictor depth (default: 12)
+  pred_emb_dim: 256  # Reduced embedding dimension (default: 384)
+
+# =============================================================================
+# DATA CONFIGURATION
+# =============================================================================
+data:
+  # Dataset paths
+  root_path: '/path/to/imagenet'  # Update this path
+  image_folder: 'imagenet_full_size/061417/'  # Update if different
+  
+  # Memory optimization
+  batch_size: 32  # Reduced batch size (default: 256)
+  pin_mem: true
+  num_workers: 4  # Reduced workers to save CPU memory
+  
+  # Image preprocessing
+  crop_size: 224  # Standard ImageNet size
+  crop_scale: [0.3, 1.0]  # Crop scale range
+  
+  # Data augmentation
+  use_gaussian_blur: true
+  use_horizontal_flip: true
+  use_color_distortion: true
+  color_jitter_strength: 0.5
+  
+  # Subset options (HIGHLY RECOMMENDED for low-end GPUs)
+  use_subset: true
+  subset_type: 'balanced'  # 'fraction', 'balanced', or 'file'
+  subset_fraction: 0.05  # Use 5% of dataset (for 'fraction' mode)
+  samples_per_class: 25  # 25 samples per class (for 'balanced' mode)
+  subset_file: null  # Path to subset file (for 'file' mode)
+
+# =============================================================================
+# MASKING CONFIGURATION
+# =============================================================================
+mask:
+  patch_size: 16  # Vision Transformer patch size
+  allow_overlap: false  # Prevent overlap between context and target
+  
+  # Context blocks (encoder masks)
+  num_enc_masks: 1  # Reduced number of context blocks (default: 4)
+  enc_mask_scale: [0.85, 1.0]  # Context block scale range
+  min_keep: 10  # Minimum patches to keep in context
+  
+  # Target blocks (predictor masks)
+  num_pred_masks: 2  # Reduced number of target blocks (default: 4)
+  pred_mask_scale: [0.15, 0.2]  # Target block scale range
+  aspect_ratio: [0.75, 1.5]  # Aspect ratio range for target blocks
+
+# =============================================================================
+# OPTIMIZATION CONFIGURATION
+# =============================================================================
+optimization:
+  # Training schedule
+  epochs: 100  # Reduced epochs (default: 800)
+  warmup: 10  # Warmup epochs
+  
+  # Learning rates
+  start_lr: 1.0e-6  # Warmup start learning rate
+  lr: 1.0e-4  # Base learning rate (reduced from 1.5e-4)
+  final_lr: 1.0e-6  # Final learning rate
+  
+  # Weight decay
+  weight_decay: 0.04  # L2 regularization
+  final_weight_decay: 0.4  # Final weight decay
+  
+  # EMA (Exponential Moving Average) for target encoder
+  ema: [0.996, 1.0]  # [start_ema, end_ema]
+  
+  # Scheduler
+  ipe_scale: 1.0  # Iterations per epoch scale factor
+
+# =============================================================================
+# LOGGING CONFIGURATION
+# =============================================================================
+logging:
+  folder: './outputs'  # Output directory
+  write_tag: 'ijepa_low_gpu'  # Experiment name
+
+# =============================================================================
+# ALTERNATIVE CONFIGS FOR DIFFERENT GPU MEMORY LEVELS
+# =============================================================================
+
+# For 4GB GPU (Very Low Memory):
+# Uncomment and modify the above config with these values:
+# meta:
+#   model_name: 'vit_tiny'
+#   pred_depth: 4
+#   pred_emb_dim: 192
+# data:
+#   batch_size: 16
+#   num_workers: 2
+#   samples_per_class: 10
+# mask:
+#   num_enc_masks: 1
+#   num_pred_masks: 1
+
+# For 6GB GPU (Low Memory):
+# Use the main config above
+
+# For 8GB GPU (Medium Memory):
+# meta:
+#   model_name: 'vit_small'
+#   pred_depth: 8
+#   pred_emb_dim: 384
+# data:
+#   batch_size: 64
+#   num_workers: 6
+#   samples_per_class: 50
+# mask:
+#   num_enc_masks: 2
+#   num_pred_masks: 3
+
+# For 12GB+ GPU (Higher Memory):
+# meta:
+#   model_name: 'vit_base'
+#   pred_depth: 12
+#   pred_emb_dim: 384
+# data:
+#   batch_size: 128
+#   num_workers: 8
+#   samples_per_class: 100
+# mask:
+#   num_enc_masks: 4
+#   num_pred_masks: 4
+# optimization:
+#   epochs: 400
