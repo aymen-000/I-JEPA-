@@ -94,3 +94,102 @@ def repeat_interleave_batch(x, B, repeat):
         for i in range(N)
     ], dim=0)
     return x
+
+
+
+def sample_block_size(gen, scale, aspect_ratio_scale, height, width):
+    """
+    Samples a random block size (height, width) for masking based on scale and aspect ratio.
+
+    Args:
+        gen (torch.Generator): PyTorch random generator for reproducibility.
+        scale (tuple): (min_scale, max_scale), fraction of total patches to be masked.
+        aspect_ratio_scale (tuple): (min_ar, max_ar), allowed aspect ratio range.
+        height (int): Total number of patch rows.
+        width (int): Total number of patch columns.
+
+    Returns:
+        tuple: (block_height, block_width) - dimensions of the sampled block.
+    """
+    min_ar, max_ar = aspect_ratio_scale
+    rand = torch.rand(1, generator=gen).item()
+
+    total_patches = height * width
+    min_s, max_s = scale
+    mask_scale = min_s + rand * (max_s - min_s)
+
+    max_keep = int(total_patches * mask_scale)
+
+    aspect_ratio = min_ar + rand * (max_ar - min_ar)
+
+    h = int(round(math.sqrt(max_keep * aspect_ratio)))
+    w = int(round(math.sqrt(max_keep / aspect_ratio)))
+
+    # Ensure the block fits in the grid
+    while h >= height or w >= width:
+        if h >= height:
+            h -= 1
+        if w >= width:
+            w -= 1
+
+    return (h, w)
+
+
+
+def sample_block_mask(b_size, min_keep, height, width, acceptable_regions=None):
+    """
+    Generate a block mask of shape (height, width) with a rectangular region set to 1,
+    such that the number of 1s exceeds min_keep. Optionally applies constraints.
+
+    Args:
+        b_size (tuple): Block size (h, w).
+        min_keep (int): Minimum number of ones to keep the mask.
+        height (int): Height of the full mask.
+        width (int): Width of the full mask.
+        accept_regions (optional): Constraint regions (used inside constrain_mask).
+    
+    Returns:
+        mask (Tensor): Flattened tensor of indices where the block is set.
+        mask_comp (Tensor): Complementary mask (1 where mask is 0).
+    """
+    def constrain_mask(mask,  tries=0):
+        """ Helper to restrict given mask to a set of acceptable regions """
+        N = max(int(len(acceptable_regions)-tries), 0)
+        for k in range(N):
+            mask *= acceptable_regions[k] 
+    h, w = b_size
+    tries = 0
+    timeout = og_timeout = 20
+    valid_mask = False
+
+    while not valid_mask:
+        top = torch.randint(0, height - h, (1,)).item()
+        left = torch.randint(0, width - w, (1,)).item()
+
+        mask = torch.zeros((height, width), dtype=torch.int32)
+        mask[top:top + h, left:left + w] = 1
+
+        if acceptable_regions is not None:
+            constrain_mask(mask,  tries)  
+
+        nonzero_mask = torch.nonzero(mask.flatten(), as_tuple=False)
+
+        valid_mask = len(nonzero_mask) > min_keep
+
+        if not valid_mask:
+            timeout -= 1
+            if timeout == 0:
+                tries += 1
+                timeout = og_timeout
+                print(f'Mask generator says: "Valid mask not found, decreasing acceptable-regions [{tries}]"')
+
+    mask = nonzero_mask.squeeze()
+
+    mask_comp = torch.ones((height, width), dtype=torch.int32)
+    mask_comp[top:top + h, left:left + w] = 0
+
+    return mask, mask_comp
+    
+    
+    
+    

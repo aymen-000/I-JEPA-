@@ -153,8 +153,7 @@ class VisionTransformer(nn.Module):
         # --
         self.pos_embed = nn.Parameter(torch.zeros(1, num_patches, embed_dim), requires_grad=False)
         pos_embed = sinus_pos_embedding(self.pos_embed.shape[-1],
-                                            int(self.patch_embed.num_patches**.5),
-                                            cls_token=False)
+                                            int(self.patch_embed.num_patches**.5))
         self.pos_embed.data.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
         # --
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
@@ -279,6 +278,8 @@ def vit_giant(patch_size=16, **kwargs):
         patch_size=patch_size, embed_dim=1408, depth=40, num_heads=16, mlp_ratio=48/11,
         qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
     return model
+
+
 
 
 VIT_EMBED_DIMS = {
