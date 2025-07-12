@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn 
 from src.models.vit.pos_encode import sinus_pos_embedding
 from src.models.vit.mlp import Block
-from src.models.utils import *
+from utils.utils import *
 from src.models.vit.image_embedding import PatchEmbed
 class VisionTransformerPredictor(nn.Module) : 
     """VIT""" 

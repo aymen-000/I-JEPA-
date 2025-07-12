@@ -1,6 +1,6 @@
 import torch 
 import torch.nn as nn 
-from src.models.utils import stem_conv
+from utils.utils import stem_conv
 
 
 
