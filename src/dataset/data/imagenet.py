@@ -25,7 +25,7 @@ def create_imagenet_subset_file(imagenet_root, subset_file_path, images_per_clas
         images_per_class: Number of images to include per class
         train: Whether to create subset for training or validation data
     """
-    suffix = 'train/' if train else 'val/'
+    suffix = '/' if train else 'val/'
     data_path = os.path.join(imagenet_root, suffix)
     
     subset_images = []
@@ -221,7 +221,7 @@ class ImageNet(torchvision.datasets.ImageFolder):
         train=True,
         job_id=None,
         local_rank=None,
-        copy_data=True,
+        copy_data=False,
         index_targets=False
     ):
         """
@@ -238,7 +238,7 @@ class ImageNet(torchvision.datasets.ImageFolder):
         :param index_targets: whether to index the id of each labeled image
         """
 
-        suffix = 'train/' if train else 'val/'
+        suffix = '/' if train else 'val/'
         data_path = None
         if copy_data:
             logger.info('copying data locally')
@@ -250,9 +250,9 @@ class ImageNet(torchvision.datasets.ImageFolder):
                 job_id=job_id,
                 local_rank=local_rank)
         if (not copy_data) or (data_path is None):
-            data_path = os.path.join(root, image_folder, suffix)
+            data_path = os.path.join(root, image_folder)
         logger.info(f'data-path {data_path}')
-
+        
         super(ImageNet, self).__init__(root=data_path, transform=transform)
         logger.info('Initialized ImageNet')
 

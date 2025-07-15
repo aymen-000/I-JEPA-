@@ -18,8 +18,8 @@ meta:
 # =============================================================================
 data:
   # Dataset paths
-  root_path: '/kaggle/input/imagenet1k-subset-100k-train-and-10k-val'  # Update this path
-  image_folder: 'imagenet_subtrain'  # Update if different
+  root_path: '/teamspace/studios/this_studio/.cache/kagglehub/datasets/kerrit/imagenet1kmediumtrain-100k/versions/1/train_100000/'  # Update this path
+  image_folder: 'train_100000'  # Update if different
   
   # Memory optimization
   batch_size: 32  # Reduced batch size (default: 256)

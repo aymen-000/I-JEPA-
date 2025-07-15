@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn 
 from src.models.vit.pos_encode import sinus_pos_embedding
 from src.models.vit.mlp import Block
-from utils.utils import *
+from src.help.utils import *
 from src.models.vit.image_embedding import PatchEmbed
 class VisionTransformerPredictor(nn.Module) : 
     """VIT""" 
@@ -15,12 +15,12 @@ class VisionTransformerPredictor(nn.Module) :
                  num_patchs , embed_dim=768 , pred_embed_dim = 384 , depth=6 , num_heads=12 , mlp_ratio=4.0 , qkv_bias=True , qk_scale=None , drop_rate=0.0 , drop_path_rate=0.0 , norm_layer=nn.LayerNorm , init_std=0.02 ,attn_drop_rate=0.0,  **kwargs):
         super().__init__(**kwargs)
         self.predictor_embed = nn.Linear(embed_dim , pred_embed_dim , bias=True) 
-        self.mask_token = nn.Parameter(torch.size(1,1,pred_embed_dim))
+        self.mask_token = nn.Parameter(torch.zeros(1,1,pred_embed_dim))
         
         
         dpr = [x.item() for x in torch.linspace(0 , drop_path_rate , depth)]
         
-        self.pred_pos_embed = nn.Parameter(torch.size(1 , num_patchs , pred_embed_dim) , requires_grad=False) 
+        self.pred_pos_embed = nn.Parameter(torch.zeros(1 , num_patchs , pred_embed_dim) , requires_grad=False) 
         
         pred_pos_embed = sinus_pos_embedding(self.pred_pos_embed.shape[-1] , int(num_patchs**.5) )
         

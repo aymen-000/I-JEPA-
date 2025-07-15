@@ -1,7 +1,7 @@
 import torch.nn as nn 
 import numpy as np 
 
-from utils.utils import drop_path , stem_conv
+from src.help.utils import drop_path , stem_conv
 
 
 class MLP(nn.Module) : 

@@ -4,7 +4,7 @@
 import math 
 import torch 
 from multiprocessing import Value
-from utils.utils import * 
+from src.help.utils import * 
 class MutiBlockMaskCollector(object) : 
     
     
@@ -64,7 +64,7 @@ class MutiBlockMaskCollector(object) :
             height=self.height , 
             width=self.width 
         )
-        e_size = sample_block_mask(
+        e_size = sample_block_size(
             gen=g , 
             scale=self.pred_mask_scale , 
             aspect_ratio_scale=(1. , 1.) , 
@@ -103,7 +103,7 @@ class MutiBlockMaskCollector(object) :
                 
             masks_e = [] 
             for _ in range(self.nenc) : 
-                mask , _ = sample_block_mask(e_size , acceptable_regions=accep_regions)
+                mask , _ = sample_block_mask(e_size ,min_keep=self.min_keep , width=self.width , height=self.height ,  acceptable_regions=accep_regions)
                 
                 masks_e.append(mask)
                 

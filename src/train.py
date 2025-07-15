@@ -1,22 +1,17 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
 
 import copy
 import logging
 import sys
 import yaml
 import os
-
+import math
 import numpy as np
 
 import torch
 import torch.nn.functional as F
 from torch.nn.parallel import DataParallel
 
-from src.dataset.masks.all_masks  import MaskCollator as MBMaskCollator
+from src.dataset.masks.all_masks  import MutiBlockMaskCollector as MBMaskCollator
 from src.help.utils  import apply_masks
 from src.help.logging import (
     CSVLogger,
@@ -26,7 +21,7 @@ from src.help.logging import (
 from src.help.utils import repeat_interleave_batch
 from src.dataset.data.imagenet import make_imagenet1k, make_imagenet1k_fraction, make_imagenet1k_balanced_subset
 
-from src.help.utils import (
+from src.help.schedulers import (
     load_checkpoint,
     init_model,
     init_opt)
@@ -244,6 +239,10 @@ def main(args, resume_preempt=False):
     ipe = len(unsupervised_loader)
 
     # -- init optimizer and scheduler
+    logger.info(f"init optimizer and scheduler")
+
+
+
     optimizer, scaler, scheduler, wd_scheduler = init_opt(
         encoder=encoder,
         predictor=predictor,
@@ -258,12 +257,7 @@ def main(args, resume_preempt=False):
         ipe_scale=ipe_scale,
         use_bfloat16=use_bfloat16)
     
-    # Use DataParallel if multiple GPUs available (but still single process)
-    if torch.cuda.device_count() > 1:
-        logger.info(f"Using {torch.cuda.device_count()} GPUs with DataParallel")
-        encoder = DataParallel(encoder)
-        predictor = DataParallel(predictor)
-        target_encoder = DataParallel(target_encoder)
+
     
     # Freeze target encoder
     for p in target_encoder.parameters():
@@ -308,6 +302,7 @@ def main(args, resume_preempt=False):
             torch.save(save_dict, save_path.format(epoch=f'{epoch + 1}'))
 
     # -- TRAINING LOOP
+    logger.info(f"start training : ====== ")
     for epoch in range(start_epoch, num_epochs):
         logger.info('Epoch %d' % (epoch + 1))
 

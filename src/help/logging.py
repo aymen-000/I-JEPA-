@@ -1,5 +1,5 @@
 import torch 
-
+import math
 def gpu_timer(closure , log_timings=True) : 
     """
     Times the execution of a GPU operation using CUDA events.

@@ -58,4 +58,5 @@ class GaussianBlur(object):
             return img
 
         radius = self.radius_min + torch.rand(1) * (self.radius_max - self.radius_min)
+        radius = float(radius.item())
         return img.filter(ImageFilter.GaussianBlur(radius=radius))
