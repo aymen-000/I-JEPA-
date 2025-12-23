@@ -7,7 +7,7 @@ from src.help.utils import stem_conv
 class PatchEmbed(nn.Module) : 
     """Imge to patch embedding"""
     
-    def __init__(self , img_size=224 , patch_size=16 , in_chans=3 , embed_dim=768):  
+    def __init__(self , img_size=64 , patch_size=16 , in_chans=3 , embed_dim=768):  
         super().__init__() 
         self.img_size = img_size 
         self.num_patches = (img_size // patch_size)**2
@@ -29,7 +29,7 @@ class ConvEmbed(nn.Module) :
      3 by 3 convolution 
     """
     
-    def __init__(self, channs , strides , img_size=224 , in_chans=3 , batch_norm =True):
+    def __init__(self, channs , strides , img_size=64 , in_chans=3 , batch_norm =True):
         super().__init__()
         bias = not batch_norm
         channels = [in_chans] + channels

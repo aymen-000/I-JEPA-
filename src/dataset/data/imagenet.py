@@ -1,15 +1,12 @@
 import os
-import subprocess
-import time
 import random
+from logging import getLogger
+from PIL import Image
 
 import numpy as np
-
-from logging import getLogger
-
 import torch
-import torchvision
-from torch.utils.data import Subset
+from torch.utils.data import Dataset, Subset
+from datasets import load_dataset
 
 _GLOBAL_SEED = 0
 logger = getLogger()
@@ -18,6 +15,7 @@ logger = getLogger()
 def create_imagenet_subset_file(imagenet_root, subset_file_path, images_per_class=50, train=True):
     """
     Create a subset file containing a limited number of images per class
+    Note: This function is kept for compatibility but not actively used with Tiny ImageNet from HuggingFace
     
     Args:
         imagenet_root: Path to ImageNet root directory
@@ -25,32 +23,8 @@ def create_imagenet_subset_file(imagenet_root, subset_file_path, images_per_clas
         images_per_class: Number of images to include per class
         train: Whether to create subset for training or validation data
     """
-    suffix = '/' if train else 'val/'
-    data_path = os.path.join(imagenet_root, suffix)
-    
-    subset_images = []
-    
-    # Iterate through each class directory
-    for class_name in os.listdir(data_path):
-        class_path = os.path.join(data_path, class_name)
-        if os.path.isdir(class_path):
-            # Get all images in this class
-            images = [f for f in os.listdir(class_path) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
-            
-            # Randomly sample images_per_class images
-            selected_images = random.sample(images, min(images_per_class, len(images)))
-            
-            # Add to subset list with format: classname_imagename.jpg
-            for img in selected_images:
-                subset_images.append(f"{class_name}_{img}")
-    
-    # Write subset file
-    with open(subset_file_path, 'w') as f:
-        for img in subset_images:
-            f.write(f"{img}\n")
-    
-    print(f"Created subset file with {len(subset_images)} images")
-    print(f"Saved to: {subset_file_path}")
+    logger.warning("create_imagenet_subset_file is not implemented for Tiny ImageNet from HuggingFace")
+    pass
 
 
 def make_imagenet1k(
@@ -68,6 +42,7 @@ def make_imagenet1k(
     drop_last=True,
     subset_file=None
 ):
+    """Load Tiny ImageNet from HuggingFace"""
     dataset = ImageNet(
         root=root_path,
         image_folder=image_folder,
@@ -75,13 +50,17 @@ def make_imagenet1k(
         train=training,
         copy_data=copy_data,
         index_targets=False)
+    
     if subset_file is not None:
         dataset = ImageNetSubset(dataset, subset_file)
+    
     logger.info('ImageNet dataset created')
+    
     dist_sampler = torch.utils.data.distributed.DistributedSampler(
         dataset=dataset,
         num_replicas=world_size,
         rank=rank)
+    
     data_loader = torch.utils.data.DataLoader(
         dataset,
         collate_fn=collator,
@@ -91,15 +70,15 @@ def make_imagenet1k(
         pin_memory=pin_mem,
         num_workers=num_workers,
         persistent_workers=False)
+    
     logger.info('ImageNet unsupervised data loader created')
-
     return dataset, data_loader, dist_sampler
 
 
 def make_imagenet1k_fraction(
     transform,
     batch_size,
-    fraction=0.1,  # Use 10% of the dataset
+    fraction=0.1,
     collator=None,
     pin_mem=True,
     num_workers=8,
@@ -113,7 +92,7 @@ def make_imagenet1k_fraction(
     subset_file=None
 ):
     """
-    Modified version that uses only a fraction of ImageNet
+    Modified version that uses only a fraction of Tiny ImageNet
     """
     dataset = ImageNet(
         root=root_path,
@@ -157,7 +136,7 @@ def make_imagenet1k_fraction(
 def make_imagenet1k_balanced_subset(
     transform,
     batch_size,
-    samples_per_class=50,  # Use 50 samples per class
+    samples_per_class=50,
     collator=None,
     pin_mem=True,
     num_workers=8,
@@ -178,7 +157,7 @@ def make_imagenet1k_balanced_subset(
         transform=transform,
         train=training,
         copy_data=copy_data,
-        index_targets=True)  # Enable indexing for balanced sampling
+        index_targets=True)
     
     # Create balanced subset indices
     subset_indices = []
@@ -210,13 +189,14 @@ def make_imagenet1k_balanced_subset(
     return dataset, data_loader, dist_sampler
 
 
-class ImageNet(torchvision.datasets.ImageFolder):
+class ImageNet(Dataset):
+    """Tiny ImageNet dataset loaded from HuggingFace"""
 
     def __init__(
         self,
-        root,
-        image_folder='imagenet_full_size/061417/',
-        tar_file='imagenet_full_size-061417.tar.gz',
+        root=None,
+        image_folder=None,
+        tar_file=None,
         transform=None,
         train=True,
         job_id=None,
@@ -225,41 +205,45 @@ class ImageNet(torchvision.datasets.ImageFolder):
         index_targets=False
     ):
         """
-        ImageNet
-
-        Dataset wrapper (can copy data locally to machine)
-
-        :param root: root network directory for ImageNet data
-        :param image_folder: path to images inside root network directory
-        :param tar_file: zipped image_folder inside root network directory
+        Tiny ImageNet from HuggingFace
+        
+        :param root: Not used (kept for compatibility)
+        :param image_folder: Not used (kept for compatibility)
+        :param tar_file: Not used (kept for compatibility)
+        :param transform: transformations to apply to images
         :param train: whether to load train data (or validation)
-        :param job_id: scheduler job-id used to create dir on local machine
-        :param copy_data: whether to copy data from network file locally
+        :param job_id: Not used (kept for compatibility)
+        :param copy_data: Not used (kept for compatibility)
         :param index_targets: whether to index the id of each labeled image
         """
-
-        suffix = '/' if train else 'val/'
-        data_path = None
-        if copy_data:
-            logger.info('copying data locally')
-            data_path = copy_imgnt_locally(
-                root=root,
-                suffix=suffix,
-                image_folder=image_folder,
-                tar_file=tar_file,
-                job_id=job_id,
-                local_rank=local_rank)
-        if (not copy_data) or (data_path is None):
-            data_path = os.path.join(root, image_folder)
-        logger.info(f'data-path {data_path}')
         
-        super(ImageNet, self).__init__(root=data_path, transform=transform)
-        logger.info('Initialized ImageNet')
+        self.transform = transform
+        self.train = train
+        
+        # Load Tiny ImageNet from HuggingFace
+        split = 'train' if train else 'valid'
+        logger.info(f'Loading Tiny ImageNet from HuggingFace (split: {split})')
+        self.hf_dataset = load_dataset('Maysee/tiny-imagenet', split=split)
+        logger.info(f'Loaded {len(self.hf_dataset)} images')
+        
+        # Get classes
+        self.classes = list(set(self.hf_dataset['label']))
+        self.classes.sort()
+        self.class_to_idx = {cls: idx for idx, cls in enumerate(self.classes)}
+        
+        # Create samples list for compatibility
+        self.samples = []
+        self.targets = []
+        for idx in range(len(self.hf_dataset)):
+            item = self.hf_dataset[idx]
+            label = item['label']
+            target = self.class_to_idx[label]
+            self.samples.append((idx, target))  # Store index instead of path
+            self.targets.append(target)
+        
+        logger.info('Initialized Tiny ImageNet from HuggingFace')
 
         if index_targets:
-            self.targets = []
-            for sample in self.samples:
-                self.targets.append(sample[1])
             self.targets = np.array(self.targets)
             self.samples = np.array(self.samples)
 
@@ -273,13 +257,32 @@ class ImageNet(torchvision.datasets.ImageFolder):
                 logger.debug(f'num-labeled target {t} {len(indices)}')
             logger.info(f'min. labeled indices {mint}')
 
+    def __len__(self):
+        return len(self.hf_dataset)
+
+    def __getitem__(self, index):
+        item = self.hf_dataset[index]
+        img = item['image']
+        
+        # Convert to RGB if needed
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+        
+        label = item['label']
+        target = self.class_to_idx[label]
+        
+        if self.transform is not None:
+            img = self.transform(img)
+        
+        return img, target
+
 
 class ImageNetSubset(object):
 
     def __init__(self, dataset, subset_file):
         """
         ImageNetSubset
-
+        
         :param dataset: ImageNet dataset object
         :param subset_file: '.txt' file containing IDs of IN1K images to keep
         """
@@ -288,21 +291,24 @@ class ImageNetSubset(object):
         self.filter_dataset_(subset_file)
 
     def filter_dataset_(self, subset_file):
-        """ Filter self.dataset to a subset """
-        root = self.dataset.root
-        class_to_idx = self.dataset.class_to_idx
-        # -- update samples to subset of IN1k targets/samples
+        """Filter self.dataset to a subset"""
+        # For Tiny ImageNet from HuggingFace, we'll use indices directly
         new_samples = []
         logger.info(f'Using {subset_file}')
+        
+        # Read subset indices from file
         with open(subset_file, 'r') as rfile:
             for line in rfile:
-                class_name = line.split('_')[0]
-                target = class_to_idx[class_name]
-                img = line.split('\n')[0]
-                new_samples.append(
-                    (os.path.join(root, class_name, img), target)
-                )
+                try:
+                    idx = int(line.strip())
+                    if idx < len(self.dataset):
+                        target = self.dataset.targets[idx]
+                        new_samples.append((idx, target))
+                except ValueError:
+                    logger.warning(f'Invalid index in subset file: {line.strip()}')
+        
         self.samples = new_samples
+        logger.info(f'Filtered to {len(self.samples)} samples')
 
     @property
     def classes(self):
@@ -312,12 +318,8 @@ class ImageNetSubset(object):
         return len(self.samples)
 
     def __getitem__(self, index):
-        path, target = self.samples[index]
-        img = self.dataset.loader(path)
-        if self.dataset.transform is not None:
-            img = self.dataset.transform(img)
-        if self.dataset.target_transform is not None:
-            target = self.dataset.target_transform(target)
+        idx, target = self.samples[index]
+        img, _ = self.dataset[idx]
         return img, target
 
 
@@ -329,42 +331,43 @@ def copy_imgnt_locally(
     job_id=None,
     local_rank=None
 ):
-    if job_id is None:
-        try:
-            job_id = os.environ['SLURM_JOBID']
-        except Exception:
-            logger.info('No job-id, will load directly from network file')
-            return None
+    """
+    Not used for Tiny ImageNet from HuggingFace
+    Kept for compatibility
+    """
+    logger.info('copy_imgnt_locally not needed for HuggingFace datasets')
+    return None
 
-    if local_rank is None:
-        try:
-            local_rank = int(os.environ['SLURM_LOCALID'])
-        except Exception:
-            logger.info('No job-id, will load directly from network file')
-            return None
 
-    source_file = os.path.join(root, tar_file)
-    target = f'/scratch/slurm_tmpdir/{job_id}/'
-    target_file = os.path.join(target, tar_file)
-    data_path = os.path.join(target, image_folder, suffix)
-    logger.info(f'{source_file}\n{target}\n{target_file}\n{data_path}')
+# Example usage
+def example_usage():
+    """Example of how to use the dataset"""
+    from torchvision import transforms
+    
+    # Define transforms
+    transform = transforms.Compose([
+        transforms.Resize(64),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], 
+                           std=[0.229, 0.224, 0.225])
+    ])
+    
+    # Create dataset and dataloader
+    dataset, data_loader, dist_sampler = make_imagenet1k(
+        transform=transform,
+        batch_size=32,
+        num_workers=2,
+        training=True
+    )
+    
+    print(f"Dataset size: {len(dataset)}")
+    print(f"Number of classes: {len(dataset.classes)}")
+    
+    # Get a sample
+    img, label = dataset[0]
+    print(f"Image shape: {img.shape}")
+    print(f"Label: {label}")
 
-    tmp_sgnl_file = os.path.join(target, 'copy_signal.txt')
 
-    if not os.path.exists(data_path):
-        if local_rank == 0:
-            commands = [
-                ['tar', '-xf', source_file, '-C', target]]
-            for cmnd in commands:
-                start_time = time.time()
-                logger.info(f'Executing {cmnd}')
-                subprocess.run(cmnd)
-                logger.info(f'Cmnd took {(time.time()-start_time)/60.} min.')
-            with open(tmp_sgnl_file, '+w') as f:
-                print('Done copying locally.', file=f)
-        else:
-            while not os.path.exists(tmp_sgnl_file):
-                time.sleep(60)
-                logger.info(f'{local_rank}: Checking {tmp_sgnl_file}')
-
-    return data_path
+if __name__ == "__main__":
+    example_usage()

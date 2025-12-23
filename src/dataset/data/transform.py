@@ -11,7 +11,7 @@ logger = getLogger()
 
 
 def make_transforms(
-    crop_size=224,
+    crop_size=64,
     crop_scale=(0.3, 1.0),
     color_jitter=1.0,
     horizontal_flip=False,

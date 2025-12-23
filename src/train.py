@@ -1,4 +1,3 @@
-
 import copy
 import logging
 import sys
@@ -29,8 +28,9 @@ from src.dataset.data.transform import make_transforms
 
 # --
 log_timings = True
-log_freq = 10
-checkpoint_freq = 50
+log_freq = 10  # Log every 10 iterations within an epoch
+epoch_log_freq = 10  # Log detailed stats every 10 epochs
+checkpoint_freq = None  # Set to None to disable intermediate checkpoints
 # --
 
 _GLOBAL_SEED = 0
@@ -81,26 +81,26 @@ def main(args, resume_preempt=False):
     crop_scale = args['data']['crop_scale']
     # -- Dataset options
     use_subset = args['data'].get('use_subset', False)
-    subset_type = args['data'].get('subset_type', 'fraction')  # 'fraction', 'balanced', 'file'
+    subset_type = args['data'].get('subset_type', 'fraction')
     subset_fraction = args['data'].get('subset_fraction', 0.1)
     samples_per_class = args['data'].get('samples_per_class', 50)
     subset_file = args['data'].get('subset_file', None)
     # --
 
     # -- MASK
-    allow_overlap = args['mask']['allow_overlap']  # whether to allow overlap b/w context and target blocks
-    patch_size = args['mask']['patch_size']  # patch-size for model training
-    num_enc_masks = args['mask']['num_enc_masks']  # number of context blocks
-    min_keep = args['mask']['min_keep']  # min number of patches in context block
-    enc_mask_scale = args['mask']['enc_mask_scale']  # scale of context blocks
-    num_pred_masks = args['mask']['num_pred_masks']  # number of target blocks
-    pred_mask_scale = args['mask']['pred_mask_scale']  # scale of target blocks
-    aspect_ratio = args['mask']['aspect_ratio']  # aspect ratio of target blocks
+    allow_overlap = args['mask']['allow_overlap']
+    patch_size = args['mask']['patch_size']
+    num_enc_masks = args['mask']['num_enc_masks']
+    min_keep = args['mask']['min_keep']
+    enc_mask_scale = args['mask']['enc_mask_scale']
+    num_pred_masks = args['mask']['num_pred_masks']
+    pred_mask_scale = args['mask']['pred_mask_scale']
+    aspect_ratio = args['mask']['aspect_ratio']
     # --
 
     # -- OPTIMIZATION
     ema = args['optimization']['ema']
-    ipe_scale = args['optimization']['ipe_scale']  # scheduler scale factor (def: 1.0)
+    ipe_scale = args['optimization']['ipe_scale']
     wd = float(args['optimization']['weight_decay'])
     final_wd = float(args['optimization']['final_weight_decay'])
     num_epochs = args['optimization']['epochs']
@@ -123,8 +123,8 @@ def main(args, resume_preempt=False):
 
     # -- log/checkpointing paths
     log_file = os.path.join(folder, f'{tag}.csv')
-    save_path = os.path.join(folder, f'{tag}' + '-ep{epoch}.pth.tar')
     latest_path = os.path.join(folder, f'{tag}-latest.pth.tar')
+    final_path = os.path.join(folder, f'{tag}-final.pth.tar')  # Final model only
     load_path = None
     if load_model:
         load_path = os.path.join(folder, r_file) if r_file is not None else latest_path
@@ -180,8 +180,8 @@ def main(args, resume_preempt=False):
                 pin_mem=pin_mem,
                 training=True,
                 num_workers=num_workers,
-                world_size=1,  # Single GPU
-                rank=0,       # Single GPU
+                world_size=1,
+                rank=0,
                 root_path=root_path,
                 image_folder=image_folder,
                 copy_data=copy_data,
@@ -197,8 +197,8 @@ def main(args, resume_preempt=False):
                 pin_mem=pin_mem,
                 training=True,
                 num_workers=num_workers,
-                world_size=1,  # Single GPU
-                rank=0,       # Single GPU
+                world_size=1,
+                rank=0,
                 root_path=root_path,
                 image_folder=image_folder,
                 copy_data=copy_data,
@@ -212,8 +212,8 @@ def main(args, resume_preempt=False):
                 pin_mem=pin_mem,
                 training=True,
                 num_workers=num_workers,
-                world_size=1,  # Single GPU
-                rank=0,       # Single GPU
+                world_size=1,
+                rank=0,
                 root_path=root_path,
                 image_folder=image_folder,
                 copy_data=copy_data,
@@ -230,8 +230,8 @@ def main(args, resume_preempt=False):
             pin_mem=pin_mem,
             training=True,
             num_workers=num_workers,
-            world_size=1,  # Single GPU
-            rank=0,       # Single GPU
+            world_size=1,
+            rank=0,
             root_path=root_path,
             image_folder=image_folder,
             copy_data=copy_data,
@@ -240,8 +240,6 @@ def main(args, resume_preempt=False):
 
     # -- init optimizer and scheduler
     logger.info(f"init optimizer and scheduler")
-
-
 
     optimizer, scaler, scheduler, wd_scheduler = init_opt(
         encoder=encoder,
@@ -256,8 +254,6 @@ def main(args, resume_preempt=False):
         num_epochs=num_epochs,
         ipe_scale=ipe_scale,
         use_bfloat16=use_bfloat16)
-    
-
     
     # Freeze target encoder
     for p in target_encoder.parameters():
@@ -284,7 +280,7 @@ def main(args, resume_preempt=False):
             next(momentum_scheduler)
             mask_collator.step()
 
-    def save_checkpoint(epoch):
+    def save_checkpoint(epoch, is_final=False):
         save_dict = {
             'encoder': encoder.state_dict(),
             'predictor': predictor.state_dict(),
@@ -294,17 +290,26 @@ def main(args, resume_preempt=False):
             'epoch': epoch,
             'loss': loss_meter.avg,
             'batch_size': batch_size,
-            'world_size': 1,  # Single GPU
+            'world_size': 1,
             'lr': lr
         }
+        
+        # Always save latest (for resuming)
         torch.save(save_dict, latest_path)
-        if (epoch + 1) % checkpoint_freq == 0:
-            torch.save(save_dict, save_path.format(epoch=f'{epoch + 1}'))
+        
+        # Save final model
+        if is_final:
+            torch.save(save_dict, final_path)
+            logger.info(f'Saved final model to {final_path}')
 
     # -- TRAINING LOOP
     logger.info(f"start training : ====== ")
+    logger.info(f"Total epochs: {num_epochs}")
+    logger.info(f"Logging detailed stats every {epoch_log_freq} epochs")
+    
     for epoch in range(start_epoch, num_epochs):
-        logger.info('Epoch %d' % (epoch + 1))
+        # Simple epoch counter (always show)
+        logger.info(f'Epoch {epoch + 1}/{num_epochs}')
 
         # -- update data-loader epoch
         if hasattr(unsupervised_sampler, 'set_epoch'):
@@ -318,7 +323,6 @@ def main(args, resume_preempt=False):
         for itr, (udata, masks_enc, masks_pred) in enumerate(unsupervised_loader):
 
             def load_imgs():
-                # -- unsupervised imgs
                 imgs = udata[0].to(device, non_blocking=True)
                 masks_1 = [u.to(device, non_blocking=True) for u in masks_enc]
                 masks_2 = [u.to(device, non_blocking=True) for u in masks_pred]
@@ -331,14 +335,12 @@ def main(args, resume_preempt=False):
             def train_step():
                 _new_lr = scheduler.step()
                 _new_wd = wd_scheduler.step()
-                # --
 
                 def forward_target():
                     with torch.no_grad():
                         h = target_encoder(imgs)
-                        h = F.layer_norm(h, (h.size(-1),))  # normalize over feature-dim
+                        h = F.layer_norm(h, (h.size(-1),))
                         B = len(h)
-                        # -- create targets (masked regions of h)
                         h = apply_masks(h, masks_pred)
                         h = repeat_interleave_batch(h, B, repeat=len(masks_enc))
                         return h
@@ -358,7 +360,7 @@ def main(args, resume_preempt=False):
                     z = forward_context()
                     loss = loss_fn(z, h)
 
-                #  Step 2. Backward & step
+                # Step 2. Backward & step
                 if use_bfloat16:
                     scaler.scale(loss).backward()
                     scaler.step(optimizer)
@@ -375,45 +377,59 @@ def main(args, resume_preempt=False):
                     for param_q, param_k in zip(encoder.parameters(), target_encoder.parameters()):
                         param_k.data.mul_(m).add_((1.-m) * param_q.detach().data)
 
-                return (float(loss), _new_lr, _new_wd, grad_stats)
+                return (loss.item(), _new_lr, _new_wd, grad_stats)
             
             (loss, _new_lr, _new_wd, grad_stats), etime = gpu_timer(train_step)
             loss_meter.update(loss)
             time_meter.update(etime)
 
-            # -- Logging
+            # -- Logging within epoch (only every 10 epochs)
             def log_stats():
                 csv_logger.log(epoch + 1, itr, loss, maskA_meter.val, maskB_meter.val, etime)
-                if (itr % log_freq == 0) or np.isnan(loss) or np.isinf(loss):
-                    logger.info('[%d, %5d] loss: %.3f '
-                                'masks: %.1f %.1f '
-                                '[wd: %.2e] [lr: %.2e] '
-                                '[mem: %.2e] '
-                                '(%.1f ms)'
-                                % (epoch + 1, itr,
-                                   loss_meter.avg,
-                                   maskA_meter.avg,
-                                   maskB_meter.avg,
-                                   _new_wd,
-                                   _new_lr,
-                                   torch.cuda.max_memory_allocated() / 1024.**2 if torch.cuda.is_available() else 0,
-                                   time_meter.avg))
-
-                    if grad_stats is not None:
-                        logger.info('[%d, %5d] grad_stats: [%.2e %.2e] (%.2e, %.2e)'
+                
+                # Only log detailed iteration stats every epoch_log_freq epochs
+                if ((epoch + 1) % epoch_log_freq == 0 or epoch == 0) and (itr % log_freq == 0):
+                    if np.isnan(loss) or np.isinf(loss):
+                        logger.warning(f'[{epoch + 1}, {itr:5d}] WARNING: loss is {loss}')
+                    else:
+                        logger.info('[%d, %5d] loss: %.3f '
+                                    'masks: %.1f %.1f '
+                                    '[wd: %.2e] [lr: %.2e] '
+                                    '[mem: %.2e] '
+                                    '(%.1f ms)'
                                     % (epoch + 1, itr,
-                                       grad_stats.first_layer,
-                                       grad_stats.last_layer,
-                                       grad_stats.min,
-                                       grad_stats.max))
+                                       loss_meter.avg,
+                                       maskA_meter.avg,
+                                       maskB_meter.avg,
+                                       _new_wd,
+                                       _new_lr,
+                                       torch.cuda.max_memory_allocated() / 1024.**2 if torch.cuda.is_available() else 0,
+                                       time_meter.avg))
+
+                        if grad_stats is not None:
+                            logger.info('[%d, %5d] grad_stats: [%.2e %.2e] (%.2e, %.2e)'
+                                        % (epoch + 1, itr,
+                                           grad_stats.first_layer,
+                                           grad_stats.last_layer,
+                                           grad_stats.min,
+                                           grad_stats.max))
 
             log_stats()
-
             assert not np.isnan(loss), 'loss is nan'
 
-        # -- Save Checkpoint after every epoch
-        logger.info('avg. loss %.3f' % loss_meter.avg)
-        save_checkpoint(epoch+1)
+        # -- End of epoch summary
+        logger.info(f'Epoch {epoch + 1}/{num_epochs} completed - avg loss: {loss_meter.avg:.4f}')
+        
+        # Save checkpoint
+        is_final = (epoch + 1 == num_epochs)
+        save_checkpoint(epoch + 1, is_final=is_final)
+        
+        if is_final:
+            logger.info('=' * 80)
+            logger.info('TRAINING COMPLETE!')
+            logger.info(f'Final model saved to: {final_path}')
+            logger.info(f'Final loss: {loss_meter.avg:.4f}')
+            logger.info('=' * 80)
 
 
 if __name__ == "__main__":
@@ -428,14 +444,5 @@ if __name__ == "__main__":
     # Load configuration
     with open(args.config, 'r') as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
-    
-    # Example of creating a subset file (uncomment if needed)
-    # from src.datasets.imagenet1k import create_imagenet_subset_file
-    # create_imagenet_subset_file(
-    #     imagenet_root='/path/to/imagenet',
-    #     subset_file_path='imagenet_subset.txt',
-    #     images_per_class=50,
-    #     train=True
-    # )
     
     main(config, resume_preempt=args.resume)

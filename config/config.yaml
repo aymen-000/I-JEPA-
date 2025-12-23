@@ -1,34 +1,34 @@
-# I-JEPA Configuration for Low-End GPUs
-# Optimized for GPUs with 4-8GB VRAM
+# I-JEPA Configuration for Tiny ImageNet (64x64)
+# Optimized for low-end GPUs with 4-8GB VRAM
 
 # =============================================================================
 # META CONFIGURATION
 # =============================================================================
 meta:
   use_bfloat16: true  # Use mixed precision to save memory
-  model_name: 'vit_small'  # Use smaller model (vit_tiny, vit_small, vit_base)
+  model_name: 'vit_tiny'  # Tiny model for 64x64 images
   load_checkpoint: false  # Set to true to resume training
   read_checkpoint: null  # Path to checkpoint file if resuming
-  copy_data: false  # Set to true if you want to copy data locally
-  pred_depth: 6  # Reduced predictor depth (default: 12)
-  pred_emb_dim: 256  # Reduced embedding dimension (default: 384)
+  copy_data: false  # Not needed for HuggingFace datasets
+  pred_depth: 4  # Reduced predictor depth for smaller images
+  pred_emb_dim: 192  # Reduced embedding dimension
 
 # =============================================================================
 # DATA CONFIGURATION
 # =============================================================================
 data:
-  # Dataset paths
-  root_path: '/teamspace/studios/this_studio/.cache/kagglehub/datasets/kerrit/imagenet1kmediumtrain-100k/versions/1/train_100000/'  # Update this path
-  image_folder: 'train_100000'  # Update if different
+  # Dataset paths (not used for HuggingFace, but kept for compatibility)
+  root_path: null  
+  image_folder: null  
   
   # Memory optimization
-  batch_size: 32  # Reduced batch size (default: 256)
+  batch_size: 64  # Can use larger batch with 64x64 images
   pin_mem: true
-  num_workers: 4  # Reduced workers to save CPU memory
+  num_workers: 4
   
-  # Image preprocessing
-  crop_size: 224  # Standard ImageNet size
-  crop_scale: [0.3, 1.0]  # Crop scale range
+  # Image preprocessing - CRITICAL: Must match Tiny ImageNet size
+  crop_size: 64  # Tiny ImageNet native size (changed from 224)
+  crop_scale: [0.4, 1.0]  # Crop scale range
   
   # Data augmentation
   use_gaussian_blur: true
@@ -36,27 +36,29 @@ data:
   use_color_distortion: true
   color_jitter_strength: 0.5
   
-  # Subset options (HIGHLY RECOMMENDED for low-end GPUs)
-  use_subset: true
-  subset_type: 'balanced'  # 'fraction', 'balanced', or 'file'
-  subset_fraction: 0.05  # Use 5% of dataset (for 'fraction' mode)
-  samples_per_class: 25  # 25 samples per class (for 'balanced' mode)
+  # Subset options (optional - Tiny ImageNet is already small)
+  use_subset: false  # Set to true if you want even less data
+  subset_type: 'fraction'  # 'fraction', 'balanced', or 'file'
+  subset_fraction: 0.5  # Use 50% of Tiny ImageNet
+  samples_per_class: 250  # For 'balanced' mode (Tiny ImageNet has 500/class)
   subset_file: null  # Path to subset file (for 'file' mode)
 
 # =============================================================================
 # MASKING CONFIGURATION
 # =============================================================================
 mask:
-  patch_size: 16  # Vision Transformer patch size
+  # CRITICAL: Patch size must divide crop_size evenly
+  # 64/8 = 8 patches per side = 64 total patches
+  patch_size: 8  # Changed from 16 to work with 64x64 images
   allow_overlap: false  # Prevent overlap between context and target
   
   # Context blocks (encoder masks)
-  num_enc_masks: 1  # Reduced number of context blocks (default: 4)
+  num_enc_masks: 1  # Number of context blocks
   enc_mask_scale: [0.85, 1.0]  # Context block scale range
-  min_keep: 10  # Minimum patches to keep in context
+  min_keep: 8  # Minimum patches to keep (must be < 64 total patches)
   
   # Target blocks (predictor masks)
-  num_pred_masks: 2  # Reduced number of target blocks (default: 4)
+  num_pred_masks: 2  # Number of target blocks
   pred_mask_scale: [0.15, 0.2]  # Target block scale range
   aspect_ratio: [0.75, 1.5]  # Aspect ratio range for target blocks
 
@@ -65,12 +67,12 @@ mask:
 # =============================================================================
 optimization:
   # Training schedule
-  epochs: 100  # Reduced epochs (default: 800)
+  epochs: 100  # Reduced epochs for faster experimentation
   warmup: 10  # Warmup epochs
   
   # Learning rates
   start_lr: 1.0e-6  # Warmup start learning rate
-  lr: 1.0e-4  # Base learning rate (reduced from 1.5e-4)
+  lr: 1.0e-4  # Base learning rate
   final_lr: 1.0e-6  # Final learning rate
   
   # Weight decay
@@ -88,53 +90,61 @@ optimization:
 # =============================================================================
 logging:
   folder: './outputs'  # Output directory
-  write_tag: 'ijepa_low_gpu'  # Experiment name
+  write_tag: 'ijepa_tiny_imagenet'  # Experiment name
 
 # =============================================================================
-# ALTERNATIVE CONFIGS FOR DIFFERENT GPU MEMORY LEVELS
+# ALTERNATIVE CONFIGS FOR DIFFERENT SCENARIOS
 # =============================================================================
 
-# For 4GB GPU (Very Low Memory):
-# Uncomment and modify the above config with these values:
+# For VERY LOW memory (4GB GPU):
 # meta:
 #   model_name: 'vit_tiny'
-#   pred_depth: 4
-#   pred_emb_dim: 192
+#   pred_depth: 3
+#   pred_emb_dim: 128
 # data:
-#   batch_size: 16
+#   batch_size: 32
 #   num_workers: 2
-#   samples_per_class: 10
+#   use_subset: true
+#   subset_fraction: 0.25
 # mask:
+#   patch_size: 8
+#   num_enc_masks: 1
+#   num_pred_masks: 1
+#   min_keep: 4
+
+# For MEDIUM memory (8GB GPU):
+# meta:
+#   model_name: 'vit_small'
+#   pred_depth: 6
+#   pred_emb_dim: 256
+# data:
+#   batch_size: 128
+#   num_workers: 6
+# mask:
+#   patch_size: 8
+#   num_enc_masks: 2
+#   num_pred_masks: 3
+#   min_keep: 12
+
+# For testing with patch_size=16 (gives only 4x4=16 patches):
+# mask:
+#   patch_size: 16  # 64/16 = 4 patches per side
+#   min_keep: 4     # Keep at least 4 patches
 #   num_enc_masks: 1
 #   num_pred_masks: 1
 
-# For 6GB GPU (Low Memory):
-# Use the main config above
-
-# For 8GB GPU (Medium Memory):
-# meta:
-#   model_name: 'vit_small'
-#   pred_depth: 8
-#   pred_emb_dim: 384
-# data:
-#   batch_size: 64
-#   num_workers: 6
-#   samples_per_class: 50
-# mask:
-#   num_enc_masks: 2
-#   num_pred_masks: 3
-
-# For 12GB+ GPU (Higher Memory):
-# meta:
-#   model_name: 'vit_base'
-#   pred_depth: 12
-#   pred_emb_dim: 384
-# data:
-#   batch_size: 128
-#   num_workers: 8
-#   samples_per_class: 100
-# mask:
-#   num_enc_masks: 4
-#   num_pred_masks: 4
-# optimization:
-#   epochs: 400
+# =============================================================================
+# KEY NOTES FOR TINY IMAGENET
+# =============================================================================
+# 1. Tiny ImageNet is 64x64 pixels (vs 224x224 for full ImageNet)
+# 2. Has 200 classes (vs 1000 for full ImageNet)
+# 3. ~100,000 training images (vs 1.2M for full ImageNet)
+# 4. Much faster to train and requires less memory
+# 
+# CRITICAL RELATIONSHIPS:
+# - crop_size must be divisible by patch_size
+# - num_patches = (crop_size / patch_size)^2
+# - With crop_size=64, patch_size=8 → 8×8 = 64 total patches
+# - With crop_size=64, patch_size=16 → 4×4 = 16 total patches
+# - min_keep must be less than num_patches
+# - All mask indices must be < num_patches

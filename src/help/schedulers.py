@@ -129,7 +129,7 @@ def init_model(
     device,
     patch_size=16,
     model_name='vit_base',
-    crop_size=224,
+    crop_size=64,
     pred_depth=6,
     pred_emb_dim=384
 ):

@@ -1,6 +1,7 @@
 import torch 
 import math
-def gpu_timer(closure , log_timings=True) : 
+
+def gpu_timer(closure, log_timings=True): 
     """
     Times the execution of a GPU operation using CUDA events.
     
@@ -17,32 +18,26 @@ def gpu_timer(closure , log_timings=True) :
     """  
     log_timings = log_timings and torch.cuda.is_available()
     
-    
-    elaps_time =-1. 
-    if log_timings : 
+    elaps_time = -1. 
+    if log_timings: 
         start = torch.cuda.Event(enable_timing=True)
         end = torch.cuda.Event(enable_timing=True)
         
-        
         start.record()
         
-    result = closure() # for example training
+    result = closure()  # for example training
     
-    if log_timings : 
+    if log_timings: 
         end.record()
         
         torch.cuda.synchronize()
         
+        # FIX: Pass 'end' event to elapsed_time()
+        elaps_time = start.elapsed_time(end)
         
-        
-        elaps_time = start.elapsed_time()
-        
-    return result , elaps_time 
+    return result, elaps_time 
 
 
-
-
-            
 class CSVLogger(object):
 
     def __init__(self, fname, *argv):
@@ -62,11 +57,8 @@ class CSVLogger(object):
             for i, tv in enumerate(zip(self.types, argv), 1):
                 end = ',' if i < len(argv) else '\n'
                 print(tv[0] % tv[1], end=end, file=f) 
-                
-                
-                
-            
-        
+
+
 class AverageMeter(object):
     """computes and stores the average and current value"""
 
@@ -107,5 +99,4 @@ def grad_logger(named_params):
                     stats.first_layer = grad_norm
     if stats.first_layer is None or stats.last_layer is None:
         stats.first_layer = stats.last_layer = 0.
-    return stats 
-            
+    return stats
