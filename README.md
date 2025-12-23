@@ -1,37 +1,38 @@
-# 🧠 I-JEPA: Image Joint-Embedding Predictive Architecture
+#  I-JEPA: Image Joint-Embedding Predictive Architecture
 
 > A PyTorch implementation of **I-JEPA** (Image Joint-Embedding Predictive Architecture), inspired by the work of Yann LeCun and Meta AI.
 
 ---
 
-## 📘 Introduction
+##  Introduction
 
 **I-JEPA** is a self-supervised learning framework introduced in the paper:
 
 > **"Self-supervised learning from images with a joint-embedding predictive architecture"**  
 > Yann LeCun, Mathilde Caron, Piotr Bojanowski, Armand Joulin, Ishan Misra, et al.  
-> [📄 arXiv:2301.08243](https://arxiv.org/abs/2301.08243)
+> [ arXiv:2301.08243](https://arxiv.org/abs/2301.08243)
 
 Unlike pixel-level reconstruction methods (e.g., MAE), **I-JEPA** encourages models to reason at a **semantic level** by predicting **high-level representations** of masked image regions. This results in more robust and scalable visual representations for downstream tasks.
 
 ---
 
-## 🚀 Key Highlights
+##  Key Highlights
 
-- ✅ Predicts latent **feature embeddings**, not raw pixels  
-- ✅ Uses **block-based masking** and **Vision Transformers (ViT)**  
-- ✅ Dual-network architecture: **encoder** & **predictor**  
-- ✅ Flexible **mask collator** with custom scale/aspect-ratio  
-- ✅ Simple and extensible codebase for research or experimentation
+-  Predicts latent **feature embeddings**, not raw pixels  
+-  Uses **block-based masking** and **Vision Transformers (ViT)**  
+-  Dual-network architecture: **encoder** & **predictor**  
+-  Flexible **mask collator** with custom scale/aspect-ratio  
+-  Simple and extensible codebase for research or experimentation
 
+  
 ---
 
-## 🖼️ Architecture Overview
+##  Architecture Overview
 
 ![I-JEPA Architecture](assets/img.png)
 
 
-## 📚 Reference
+##  Reference
 
 **Citation:**
 
@@ -44,18 +45,18 @@ Unlike pixel-level reconstruction methods (e.g., MAE), **I-JEPA** encourages mod
 }
 ```
 
-- 🔗 [Paper on arXiv](https://arxiv.org/abs/2301.08243)
+-  [Paper on arXiv](https://arxiv.org/abs/2301.08243)
 
 ---
 
-## 🙏 Acknowledgements
+##  Acknowledgements
 
 - Core concept and methodology by [Meta AI Research](https://ai.facebook.com/research/).
 - Masking and collator logic inspired by the official I-JEPA and DINO repositories.
 
 ---
 
-## 📬 Contact
+##  Contact
 
 - GitHub: [@aymen-000](https://github.com/aymen-000)  
 - Email: [aymne011@gmail.com](mailto:aymne011@gmail.com)

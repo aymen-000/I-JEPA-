@@ -10,7 +10,7 @@ class MutiBlockMaskCollector(object):
                  patch_size=8, 
                  enc_mask_scale=(0.2, 0.8), 
                  pred_mask_scale=(0.2, 0.8), 
-                 aspect_ratio=(0.3, 3.0),  # FIXED: Was (0.3, 0,3) - typo with comma!
+                 aspect_ratio=(0.3, 3.0),  
                  nenc=1, 
                  npred=2, 
                  min_keep=4, 
@@ -22,7 +22,7 @@ class MutiBlockMaskCollector(object):
             
         self.enc_mask_scale = enc_mask_scale 
         
-        # CRITICAL FIX: Convert pixel dimensions to patch grid dimensions
+        # Convert pixel dimensions to patch grid dimensions
         self.height = input_size[0] // patch_size  # 64 // 8 = 8 patches
         self.width = input_size[1] // patch_size   # 64 // 8 = 8 patches
         
@@ -136,7 +136,7 @@ class RandomMaskCollector(object):
     def __init__(self, 
                  ratio=(0.4, 0.6), 
                  input_size=(64, 64),  
-                 patch_size=8):  # FIXED: Changed default from 16 to 8
+                 patch_size=8):
         
         super(RandomMaskCollector, self).__init__()
         if not isinstance(input_size, tuple): 
